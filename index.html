@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passport Photo Editor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+        }
+
+        #container {
+            width: 95%;
+            max-width: 600px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 10px;
+            box-sizing: border-box;
+        }
+
+        #image-container {
+            position: relative;
+            overflow: visible;
+            margin-bottom: 10px;
+            width: 100%;
+            height: auto;
+        }
+
+        #uploaded-image {
+            max-width: 100%;
+            max-height: auto;
+            display: none;
+        }
+
+        #text-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            user-select: none;
+            cursor: move;
+            display: none;
+            white-space: nowrap;
+        }
+
+        .controls {
+            margin-top: 5px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .controls button {
+            margin: 5px;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+
+        #crop-options {
+            margin-top: 5px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        #crop-options button {
+            margin: 5px;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+
+        input[type="file"],
+        input[type="text"] {
+            width: 100%;
+            margin-bottom: 5px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 1.5em;
+        }
+
+        /* Color Picker Styles */
+        .color-options {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 5px;
+        }
+
+        .color-button {
+            width: 25px;
+            height: 25px;
+            border: 1px solid #ccc;
+            margin: 3px;
+            cursor: pointer;
+        }
+
+        /* Hide the default color picker on smaller screens */
+        input[type="color"] {
+            display: none;
+        }
+
+        /* Media queries for smaller screens */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.2em;
+            }
+
+            .controls button,
+            #crop-options button {
+                font-size: 12px;
+                padding: 3px 6px;
+            }
+
+            #text-overlay {
+                font-size: 14px;
+            }
+
+            /* Show color buttons on smaller screens */
+            .color-options {
+                display: flex;
+            }
+
+            /*Hide Input color*/
+            input[type="color"] {
+               display: none;
+            }
+
+        }
+
+        /* Media queries for larger screens */
+        @media (min-width: 601px) {
+            /* Show default color input on larger screens */
+            input[type="color"] {
+                display: inline-block;
+                width: auto;
+                margin-right: 10px;
+            }
+
+            /* Hide color buttons on larger screens */
+            .color-options {
+                display: none;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Passport Photo Editor</h1>
+
+    <div id="container">
+        <input type="file" id="image-upload" accept="image/*">
+
+        <div id="image-container">
+            <img id="uploaded-image" src="#" alt="Uploaded Image">
+            <div id="text-overlay"></div>
+        </div>
+
+        <div id="crop-options">
+            <button onclick="setCropSize('35x45')">35 x 45 mm</button>
+            <button onclick="setCropSize('45x35')">45 x 35 mm</button>
+            <button onclick="setCropSize('free')">Free Crop</button>
+        </div>
+
+        <div class="controls">
+            <button onclick="applyCrop()">Crop</button>
+            <button onclick="resizeImage()">Resize Image</button>  <!-- This is a placeholder-->
+        </div>
+
+        <div class="controls">
+            <input type="text" id="text-input" placeholder="Add Text">
+            <button onclick="addText()">Add Text</button>
+            <button onclick="increaseFontSize()">Increase Font</button>
+            <button onclick="decreaseFontSize()">Decrease Font</button>
+        </div>
+
+        <div class="controls">
+            <!-- Default Color Picker -->
+            <input type="color" id="font-color-picker" value="#ffffff">
+
+            <!-- Color Options for Mobile -->
+            <div class="color-options">
+                <button class="color-button" style="background-color: white;" data-color="white" onclick="setColor(this)"></button>
+                <button class="color-button" style="background-color: black;" data-color="black" onclick="setColor(this)"></button>
+                <button class="color-button" style="background-color: red;" data-color="red" onclick="setColor(this)"></button>
+                <button class="color-button" style="background-color: blue;" data-color="blue" onclick="setColor(this)"></button>
+                <button class="color-button" style="background-color: green;" data-color="green" onclick="setColor(this)"></button>
+                <button class="color-button" style="background-color: yellow;" data-color="yellow" onclick="setColor(this)"></button>
+            </div>
+            <button onclick="setFontColor()">Set Font Color</button>
+        </div>
+
+        <button onclick="downloadImage()">Download Image</button>
+        <button onclick="openColorBg()">Add Color BG</button>
+        <button onclick="openCustomBg()">Add Custom BG</button>
+
+        <canvas id="download-canvas" style="display: none;"></canvas>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <script>
+        const imageUpload = document.getElementById('image-upload');
+        const uploadedImage = document.getElementById('uploaded-image');
+        const imageContainer = document.getElementById('image-container');
+        const textOverlay = document.getElementById('text-overlay');
+        const textInput = document.getElementById('text-input');
+        const fontColorPicker = document.getElementById('font-color-picker');
+        const downloadCanvas = document.getElementById('download-canvas');
+
+        let cropper;
+        let fontSize = 16;
+        let isDragging = false;
+        let offsetX, offsetY;
+        let currentAspectRatio = 35/45;
+        let currentTextColor = 'white'; //Default Text Color
+
+        imageUpload.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    uploadedImage.src = e.target.result;
+                    uploadedImage.style.display = 'block';
+
+                    uploadedImage.onload = function() {
+                        console.log("Image loaded");
+
+                        if (cropper) {
+                            cropper.destroy();
+                            cropper = null;
+                        }
+
+                        cropper = new Cropper(uploadedImage, {
+                            aspectRatio: currentAspectRatio,
+                            viewMode: 1,
+                            autoCropArea: 1,
+                        });
+                        console.log("Cropper Initialized");
+                    };
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function setCropSize(size) {
+            if (!uploadedImage.src) {
+               alert("Please upload an image first");
+               return;
+           }
+
+            if (!cropper) {
+                alert("Please upload an image first.");
+                return;
+            }
+            console.log("Setting Crop Size:", size);
+            if (size === '35x45') {
+                cropper.setAspectRatio(35 / 45);
+                currentAspectRatio = 35 / 45;
+            } else if (size === '45x35') {
+                cropper.setAspectRatio(45 / 35);
+                currentAspectRatio = 45 / 35;
+            } else if (size === 'free') {
+                cropper.setAspectRatio(NaN);
+                currentAspectRatio = NaN;
+            }
+        }
+
+        function applyCrop() {
+            if (!cropper) {
+                alert("Please upload an image first.");
+                return;
+            }
+
+            const croppedCanvas = cropper.getCroppedCanvas();
+            console.log("Cropped Canvas:", croppedCanvas);
+            if (croppedCanvas) {
+                uploadedImage.src = croppedCanvas.toDataURL('image/jpeg');
+            }
+
+            cropper.destroy();
+            cropper = null;
+        }
+
+        function resizeImage() {
+            alert('Resizing functionality to be implemented.');
+        }
+
+        function addText() {
+            const text = textInput.value;
+            textOverlay.textContent = text;
+            textOverlay.style.display = 'block';
+        }
+
+        function increaseFontSize() {
+            fontSize += 2;
+            textOverlay.style.fontSize = fontSize + 'px';
+        }
+
+        function decreaseFontSize() {
+            fontSize = Math.max(10, fontSize - 2);
+            textOverlay.style.fontSize = fontSize + 'px';
+        }
+
+        function setFontColor() {
+            const color = fontColorPicker.value;
+            currentTextColor = color;
+            textOverlay.style.color = color;
+        }
+
+        // New function to set color from button
+        function setColor(button) {
+            const color = button.dataset.color;
+            currentTextColor = color;
+            textOverlay.style.color = color;
+
+            //Also update input color
+            fontColorPicker.value = color;
+
+        }
+
+         // Function to convert mm to pixels (assuming 300 DPI)
+        function mmToPixels(mm) {
+            const dpi = 300; // Standard DPI for printing
+            const pixelsPerInch = dpi;
+            const mmPerInch = 25.4;
+            return (mm / mmPerInch) * pixelsPerInch;
+        }
+
+       async function downloadImage() {
+            if (!uploadedImage.src) {
+                alert("Please upload and process an image first.");
+                return;
+            }
+
+            let downloadWidthMm, downloadHeightMm;
+
+            // Determine the download size based on the *current* aspect ratio
+            if (currentAspectRatio === (35 / 45)) {
+                downloadWidthMm = 35;
+                downloadHeightMm = 45;
+            } else if (currentAspectRatio === (45 / 35)) {
+                downloadWidthMm = 45;
+                downloadHeightMm = 35;
+            } else {
+                // Default size if free crop or something went wrong
+                downloadWidthMm = 35;
+                downloadHeightMm = 45;
+                alert("Warning:  Since free crop is selected, the downloaded image will default to 35mm x 45mm.");
+            }
+
+            const downloadWidthPx = mmToPixels(downloadWidthMm);
+            const downloadHeightPx = mmToPixels(downloadHeightMm);
+
+            // Set the canvas dimensions to a higher resolution (e.g., 1200 DPI)
+            const highResDPI = 1200;
+            const highResWidthPx = (downloadWidthMm / 25.4) * highResDPI;
+            const highResHeightPx = (downloadHeightMm / 25.4) * highResDPI;
+
+            downloadCanvas.width = highResWidthPx;
+            downloadCanvas.height = highResHeightPx;
+
+            const ctx = downloadCanvas.getContext('2d');
+
+            const img = new Image();
+            img.onload = async function() {
+                // Draw the image on the download canvas at the higher resolution
+                ctx.drawImage(img, 0, 0, highResWidthPx, highResHeightPx);
+
+                // Draw the text onto the download canvas
+                ctx.font = fontSize + 'px bold sans-serif';
+                ctx.fillStyle = currentTextColor;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                const textX = highResWidthPx / 2;
+                const textY = highResHeightPx;
+
+                ctx.fillText(textOverlay.textContent, textX, textY);
+
+                // Create a data URL with initial high quality
+                let dataURL = downloadCanvas.toDataURL('image/jpeg', 0.95);
+                let fileSizeKB = dataURLToKilobytes(dataURL);  // Function defined below
+
+                // Reduce quality iteratively until the file size is at least 300KB or quality is too low
+                let quality = 0.95; // Initial quality
+                while (fileSizeKB < 300 && quality > 0.1) {
+                    quality -= 0.05; // Reduce quality by 5% each time
+                    dataURL = downloadCanvas.toDataURL('image/jpeg', quality);
+                    fileSizeKB = dataURLToKilobytes(dataURL);
+                }
+
+                if(fileSizeKB < 300){
+                    alert("Warning: Could not achieve 300KB minimum size even at low quality.  Image might be small. Current Size: " + fileSizeKB + "KB");
+                }
+
+                // Create a download link from the adjusted data URL
+                const a = document.createElement('a');
+                a.href = dataURL;
+                a.download = 'passport_photo.jpg';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            img.src = uploadedImage.src;
+        }
+
+        // Helper function to calculate data URL size in kilobytes
+        function dataURLToKilobytes(dataURL) {
+            const stringLength = dataURL.length - 'data:image/jpeg;base64,'.length;
+            const padding = (dataURL.charAt(dataURL.length - 2) == '=') ? 2 : (dataURL.charAt(dataURL.length - 1) == '=') ? 1 : 0;
+            const byteLength = stringLength * 0.75 * 4 / 3;
+            const kilobytes = byteLength / 1024;
+            return kilobytes;
+        }
+
+        // Make the text overlay movable
+        textOverlay.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            offsetX = e.clientX - textOverlay.offsetLeft;
+            offsetY = e.clientY - textOverlay.offsetTop;
+            textOverlay.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+            textOverlay.style.cursor = 'move';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            const x = e.clientX - offsetX;
+            const y = e.clientY - offsetY;
+
+            const containerRect = imageContainer.getBoundingClientRect();
+            const textRect = textOverlay.getBoundingClientRect();
+
+            const minX = containerRect.left - imageContainer.offsetLeft;
+            const maxX = containerRect.right - imageContainer.offsetLeft - textRect.width;
+            const minY = containerRect.top - imageContainer.offsetTop;
+            const maxY = containerRect.bottom - imageContainer.offsetTop + imageContainer.offsetHeight  - textRect.height;
+
+            const boundedX = Math.max(minX, Math.min(x, maxX));
+            const boundedY = Math.max(minY, Math.min(y, maxY));
+
+            textOverlay.style.left = boundedX + 'px';
+            textOverlay.style.top = boundedY + 'px';
+        });
+
+        // Touch events
+        textOverlay.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            offsetX = e.touches[0].clientX - textOverlay.offsetLeft;
+            offsetY = e.touches[0].clientY - textOverlay.offsetTop;
+            textOverlay.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+            textOverlay.style.cursor = 'move';
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+
+            const x = e.touches[0].clientX - offsetX;
+            const y = e.touches[0].clientY - offsetY;
+
+            const containerRect = imageContainer.getBoundingClientRect();
+            const textRect = textOverlay.getBoundingClientRect();
+
+            const minX = containerRect.left - imageContainer.offsetLeft;
+            const maxX = containerRect.right - imageContainer.offsetLeft - textRect.width;
+            const minY = containerRect.top - imageContainer.offsetTop;
+            const maxY = containerRect.bottom - imageContainer.offsetTop + imageContainer.offsetHeight  - textRect.height;
+
+            const boundedX = Math.max(minX, Math.min(x, maxX));
+            const boundedY = Math.max(minY, Math.min(y, maxY));
+
+            textOverlay.style.left = boundedX + 'px';
+            textOverlay.style.top = boundedY + 'px';
+        });
+
+        function openColorBg() {
+            window.open('https://jayantadal.github.io/Jayanta-BG-Remover/', '_blank');
+        }
+
+        function openCustomBg() {
+            window.open('https://jayantadal.github.io/BG-Remover/', '_blank');
+        }
+    </script>
+</body>
+</html>
